@@ -1,6 +1,8 @@
 
 # Tesseract Graphics
 
+[![Join the chat at https://gitter.im/Exerro/Tesseract](https://badges.gitter.im/Exerro/Tesseract.svg)](https://gitter.im/Exerro/Tesseract?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Tesseract is a graphics library for ComputerCraft and possibly OpenComputers and (Dan's New Project) at some stage.
 
 ### How to install and use

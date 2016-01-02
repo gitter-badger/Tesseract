@@ -14,11 +14,12 @@ local function linfo( x1, y1, x2, y2 )
 	local c = x1 - m * y1
 
 	return {
-		dx >= 0 and x1 or x2;
-		dx >= 0 and x2 or x1;
+		dy >= 0 and y1 or y2;
+		dy >= 0 and y2 or y1;
 		m;
 		c;
 		dx;
+		x1;
 	}
 end
 
@@ -28,17 +29,22 @@ local function scanline( lines, y )
 
 	for i = 1, #lines do
 		local l = lines[i]
-		local p = l[5] == 0 and l[1] or l[3] * y + l[4]
 
-		if p >= l[1] and p <= l[2] then
-			points[n] = p
+		if y >= l[1] and y <= l[2] then
+			points[n] = l[5] == 0 and l[6] or l[3] * y + l[4]
 			n = n + 1
 		end
 	end
 
-	if points[1] then
-		return floor( points[1] + .5 ), floor( ( points[2] or points[1] ) + .5 )
+	table.sort( points )
+
+	for i = #points, 2, -1 do
+		if abs(points[i] - points[i - 1]) < 0.001 then
+			table.remove( points, i - 1 )
+		end
 	end
+
+	return points
 end
 
 local function shapeFromLines( lines, minY, maxY )
@@ -47,10 +53,12 @@ local function shapeFromLines( lines, minY, maxY )
 	local width, height = render.getDimensions()
 
 	for i = max( floor( minY + .5 ), 0 ), min( floor( maxY + .5 ), height - 1 ) do
-		local a, b = scanline( lines, i )
+		local points = scanline( lines, i )
 
-		if a then
-			a, b = min( a, b ), max( a, b )
+		for p = 1, #points, 2 do
+			local a, b = floor( points[p] + .5 ), floor( (points[p + 1] or points[p]) + .5 )
+			if a >= width then break end
+			if b < 0 then break end
 			if a < 0 then a = 0 end
 			if b >= width then b = width - 1 end
 
@@ -171,8 +179,6 @@ end
 function primitive.circle( rx, ry, r, s )
 	s = s or floor( PI2 * r + .5 )
 
-	rx, ry = transform( rx, ry )
-
 	local x = {}
 	local y = {}
 	local lines = {}
@@ -183,7 +189,7 @@ function primitive.circle( rx, ry, r, s )
 	end
 
 	for i = 1, s do
-		lines[i] = linfo( x[i], y[i], x[i + 1] or x[1], y[i + 1] or y[1] )
+		lines[#lines + 1] = linfo( x[i], y[i], x[i + 1] or x[1], y[i + 1] or y[1] )
 	end
 
 	return shapeFromLines( lines, min( unpack( y ) ), max( unpack( y ) ) )

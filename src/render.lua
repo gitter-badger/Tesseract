@@ -1,4 +1,5 @@
 
+local min, max = math.min, math.max
 local width, height = term.getSize()
 local screen = canvas( width, height )
 local target = screen
@@ -26,6 +27,13 @@ function render.clear( value )
 
 	for i = 1, width * height do
 		target[i] = value
+	end
+end
+
+function render.blit( x, y, values )
+	local p = y * width + x
+	for i = max( 1 - x, 1 ), min( #values, width - x ) do
+		target[p + i] = values[i]
 	end
 end
 

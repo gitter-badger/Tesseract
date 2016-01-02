@@ -1,18 +1,6 @@
 
 local width, height = term.getSize()
-
-render.clear( "f" )
-
-local n = 1
-local c = { "0", "1", "2", "3", "4", "5", "6", "7" }
-
-for i = 1, #c do
-	transform.add( transform.translate( 51, 18 ) )
-	render.mapPoints( primitive.rectangle( 0, 0, 5, 5 ), c[i] )
-	transform.pop()
-	transform.add( transform.rotate( i * math.pi / 4 - math.pi ) )
-	transform.add( transform.scale( 1 + i / 2, 1 + i / 3 ) )
-end
+local r = 0
 
 local function draw()
 
@@ -34,4 +22,23 @@ local function draw()
 	end
 end
 
-draw()
+while os.pullEvent() ~= "mouse_click" do
+	render.clear "0"
+	r = r + math.pi / 64
+	transform.pop()
+	transform.add( transform.rotate( r ) )
+	transform.add( transform.scale( 2, 2 ) )
+	transform.add( transform.translate( 51, 10 ) )
+	render.mapPoints( primitive.rectangle( 0, 0, 10, 10, 10, 0 ), "b" )
+	transform.add( transform.translate( -51, -10 ) )
+	transform.add( transform.scale( .5, .5 ) )
+	transform.add( transform.translate( 51, 10 ) )
+	render.mapPoints( primitive.rectangle( 0, 0, 10, 10, 10, 0 ), "e" )
+	transform.pop()
+	transform.add( transform.translate( 5, 0 ) )
+	transform.add( transform.rotate( r ) )
+	transform.add( transform.scale( 1.4, 1 ) )
+	transform.add( transform.translate( 20, 20 ) )
+	render.mapPoints( primitive.circle( 0, 0, 10 ), "9" )
+	draw()
+end

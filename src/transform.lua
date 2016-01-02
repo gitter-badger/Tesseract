@@ -5,8 +5,7 @@ local stack = {}
 local sin, cos = math.sin, math.cos
 local unpack = table.unpack or unpack
 
-function transform.add( t )
-	local a, b, c, d, e, f, g, h, i = unpack( t )
+function transform.add( a, b, c, d, e, f, g, h, i )
 	local j, k, l, m, n, o, p, q, r = unpack( stack[#stack] )
 
 	stack[#stack] = {
@@ -16,7 +15,7 @@ function transform.add( t )
 	}
 end
 
-function transform.push( t )
+function transform.push()
 	stack[#stack + 1] = t or {
 		1, 0, 0;
 		0, 1, 0;
@@ -25,48 +24,39 @@ function transform.push( t )
 end
 
 function transform.pop()
-	local v = stack[#stack]
-
-	stack[#stack] = nil
-
-	if #stack == 0 then
-		transform.push()
+	if #stack == 1 then
+		table.insert( stack, 1, { 1, 0, 0, 0, 1, 0, 0, 0, 1 } )
 	end
-
-	return v
+	return unpack( table.remove( stack, #stack ) )
 end
 
 function transform.translate( x, y )
-	return {
-		1, 0, x;
-		0, 1, y;
-		0, 0, 1;
-	}
+	return
+		1, 0, x,
+		0, 1, y,
+		0, 0, 1
 end
 
 function transform.scale( x, y )
-	return {
-		x, 0, 0;
-		0, y, 0;
-		0, 0, 1;
-	}
+	return
+		x, 0, 0,
+		0, y, 0,
+		0, 0, 1
 end
 
 function transform.rotate( a )
 	local s, c = sin(a), cos(a)
-	return {
-		 c, -s, 0;
-		 s,  c, 0;
-		 0,  0, 1;
-	}
+	return
+		 c, -s, 0,
+		 s,  c, 0,
+		 0,  0, 1
 end
 
 function transform.shear( x, y )
-	return {
-		1, x, 0;
-		y, 1, 0;
-		0, 0, 1;
-	}
+	return
+		1, x, 0,
+		y, 1, 0,
+		0, 0, 1
 end
 
 function transform.transform( x, y )

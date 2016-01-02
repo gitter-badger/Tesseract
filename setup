@@ -1,0 +1,37 @@
+
+init graphics
+
+add file main
+
+add path /
+add path src
+
+add module conditionals
+add module file
+add module lgen.processor
+
+@if LUA51 add flag LUA51 @endif
+
+@ifn MINIFY
+  @ifn API
+    add output /builds/graphics.lua
+
+  @else
+    add output /builds/graphics_api.lua
+    add flag API
+  @endif
+@endif
+
+@if MINIFY
+  add flag MINIFY
+  add module processors.minify
+  
+  @ifn API
+    add output /builds/graphics_min.lua
+
+  @else
+    add output /builds/graphics_api_min.lua
+    add flag API
+  @endif
+@endif
+

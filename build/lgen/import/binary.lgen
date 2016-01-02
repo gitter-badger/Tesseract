@@ -1,0 +1,3 @@
+
+complex '0b([01]+)':
+	token( "number", tonumber( initialiser, 2 ) )

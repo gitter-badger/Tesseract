@@ -1,0 +1,3 @@
+
+pat '%d*%.%d+' -> number
+pat '%d*%.%d+e[%+%-]?%d+' -> number

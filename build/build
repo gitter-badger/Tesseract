@@ -1,0 +1,432 @@
+
+local command = ... or "build"
+local args = { select( 2, ... ) }
+local indexes = { "files", "paths", "outputs", "flags", "modules" }
+local commands = {}
+local preprocessor = require "preprocessor"
+
+local HELPTEXT = [[
+Usage
+-----
+
+Default command is 'build'
+
+Commands:
+	init <name>
+		Starts a new session, name is optional.
+
+	status (s)
+		Shows the status of the session.
+
+	name
+		Renames the session.
+
+	add [field] <...>
+		Adds the list to the field.
+
+	remove [field] <...>
+		Removes the list from the field.
+
+	set [field] <value>
+		Sets the field to the value.
+
+	clear [field]s
+		Clears all values from the field.
+
+	run <file>
+		Runs a file containing commands.
+
+	build
+		Builds the session.
+
+	debug
+		Debugs the session (runs the build).
+
+	save <file>
+		Saves the session.
+
+	load <file>
+		Loads a saved session.
+
+Field names:
+	]] .. indexes[1]:sub( 1, -2 )
+
+local function filename( name )
+	return name:sub( 1, 1 ) == "/" and name or fs.combine( shell.dir(), name )
+end
+
+local function fieldarg( field, arg )
+	if field == "outputs" or field == "paths" then
+		return filename( arg )
+	end
+	return arg
+end
+
+local function linewrap( text, width )
+	local indentation = text:match "^%s*"
+
+	for i = 1, width do
+		if text:sub( i, i ) == "\n" then
+			return text:sub( 1, i - 1 ), text:sub( i + 1 )
+		end
+	end
+
+	if #text < width then
+		return text, ""
+	end
+
+	for i = width + 1, 1, -1 do
+		if text:sub( i, i ):find "%s" then
+			return text:sub( 1, i - 1 ):gsub( "%s+$", "" ), indentation .. text:sub( i + 1 )
+		end
+	end
+
+	return text:sub( 1, width ), indentation .. text:sub( width )
+end
+
+local function wrap( text, width )
+	local lines = {}
+	while #text > 0 do
+		lines[#lines + 1], text = linewrap( text, width )
+	end
+	return lines
+end
+
+for i = 2, #indexes do
+	HELPTEXT = HELPTEXT .. ", " .. indexes[i]:sub( 1, -2 )
+end
+
+for i = 1, #indexes do
+	indexes[indexes[i]] = i
+end
+
+local function isFile( file )
+	return fs.exists( file ) and not fs.isDir( file ) and file
+end
+
+local function tokenise( line )
+	local words = {}
+	local quoted = false
+
+	for segment in line:gmatch '(.-)"' do
+		if quoted then
+			table.insert( words, segment )
+		else
+			for word in segment:gmatch "%S+" do
+				table.insert( words, word )
+			end
+		end
+		quoted = not quoted
+	end
+
+	return words
+end
+
+local function new( name )
+	local t = { name = name or "unknown" }
+
+	for i = 1, #indexes do
+		t[indexes[i]] = {}
+	end
+
+	t.paths[1] = shell.dir()
+
+	return t
+end
+
+local function printt( label, t )
+	if #t > 0 then
+		print( "\n  " .. label )
+		for i = 1, #t do
+			print( "    '" .. t[i] .. "'" )
+		end
+	end
+end
+
+local function getdata()
+	local h = fs.open( filename ".build-data", "r" )
+	if not h then return new() end
+	local content = h.readAll()
+	local data = textutils.unserialize( content )
+
+	h.close()
+
+	if type( data ) == "table" and type( data.name ) == "string" then
+		for i = 1, #indexes do
+			if type( data[indexes[i]] ) ~= "table" then
+				return new()
+			end
+		end
+		return data
+	end
+
+	return new()
+end
+
+local function setdata( t )
+	if fs.isDir( filename ".build-data" ) then fs.delete( filename ".build-data" ) end
+
+	local h = fs.open( filename".build-data", "w" )
+
+	h.write( textutils.serialize( t ) )
+	h.close()
+end
+
+local function getindex( index )
+	return getdata()[index]
+end
+
+local function setindex( index, value )
+	local t = getdata()
+	t[index] = value
+	setdata( t )
+end
+
+local function resolveFilename( file )
+	local paths = getindex "paths"
+	
+	for i = 1, #paths do
+		local path = filename( paths[i] .. "/" .. file )
+
+		if isFile( path ) then
+			return path
+		elseif isFile( path .. ".lua" ) then
+			return path .. ".lua"
+		elseif isFile( path .. "/init.lua" ) then
+			return path .. "/init.lua"
+		end
+	end
+
+	return ( isFile( file ) and file ) or ( isFile( filename( file ) ) and filename( file ) ) or nil
+end
+
+local function status()
+	local data = getdata()
+
+	print( "  Name: '" .. data.name .. "'" )
+
+	printt( "Files", data.files )
+	printt( "Paths", data.paths )
+	printt( "Outputs", data.outputs )
+	printt( "Flags", data.flags )
+	printt( "Modules", data.modules )
+end
+
+local function build()
+	local data = getdata()
+	local p = preprocessor( table.concat( data.paths, ";" ) )
+
+	for i = 1, #data.flags do
+		p.environment[data.flags[i]] = true
+	end
+
+	for i = #data.files, 1, -1 do
+		local path = p:resolvePath( data.files[i] )
+		if path then
+			local h = fs.open( path, "r" )
+			local content = h.readAll()
+
+			h.close()
+			p.istream:write( "\n" .. content )
+		else
+			return error( "cannot find file '" .. data.files[i] .. "'", 0 )
+		end
+	end
+
+	for i = 1, #data.modules do
+		p.istream:write( "@" .. "load " .. ("%q"):format( data.modules[i] ) .. "\n" )
+	end
+
+	return p:build()
+end
+
+local function addto( index, value )
+	local t = getindex( index )
+
+	for i = 1, #t do
+		if t[i] == value then return end
+	end
+
+	t[#t + 1] = value
+	setindex( index, t )
+end
+
+local function removefrom( index, value )
+	local t = getindex( index )
+
+	for i = 1, #t do
+		if t[i] == value then
+			table.remove( t, i )
+			return setindex( index, t )
+		end
+	end
+end
+
+local function checkField( field, err )
+	if type( field ) ~= "string" then return error( "expected string field, got " .. type( field ), 0 ) end
+	if not indexes[field .. "s"] then return error( err .. " '" .. field .. "s'", 0 ) end
+end
+
+function commands.init( name )
+	fs.delete ".build-data"
+	setdata( new( tostring( name or "unknown" ) ) )
+	print "Initialised session"
+end
+
+function commands.name( name )
+	if type( name ) ~= "string" then error( "expected string name, got " .. type( name ) ) end
+	setindex( "name", name )
+	print "Set name"
+end
+
+function commands.add( field, ... )
+	local args = { ... }
+
+	checkField( field, "cannot add to" )
+	field = field .. "s"
+
+	for i = 1, #args do
+		addto( field, fieldarg( field, args[i] ) )
+		print( "Added " .. field:sub( 1, -2 ) .. " '" .. fieldarg( field, args[i] ) .. "'" )
+	end
+end
+
+function commands.remove( field, ... )
+	local args = { ... }
+
+	checkField( field, "cannot remove from" )
+	field = field .. "s"
+
+	for i = 1, #args do
+		removefrom( field, fieldarg( field, args[i] ) )
+		print( "Removed " .. field:sub( 1, -2 ) .. " '" .. fieldarg( field, args[i] ) .. "'" )
+	end
+end
+
+function commands.set( field, value )
+	checkField( field, "cannot set" )
+	field = field .. "s"
+	setindex( field, { fieldarg( field, tostring(value) ) } )
+	print( "Set " .. field .. " to {'" .. fieldarg( field, tostring(value) ) .. "'}" )
+end
+
+function commands.clear( field )
+	if type( field ) ~= "string" then return error( "expected string field, got " .. type( field ), 0 ) end
+	if not indexes[field] then return error( "cannot clear '" .. field .. "'", 0 ) end
+	setindex( field, {} )
+	print( "Cleared " .. field )
+end
+
+function commands.run( file, ... )
+	local path = resolveFilename( file ) or error( "cannot find file '" .. file .. "'", 0 )
+	local h = fs.open( path, "r" )
+	local lines = {}
+	local args = { ... }
+	local content = h.readAll()
+	local text = content
+
+	if content:find "@" then
+		local p = preprocessor( fs.getDir( path ) )
+
+		p.istream:write( content )
+		p.istream:write "@load conditionals @load file "
+
+		for i = 1, #args do
+			p.environment[args[i]] = true
+		end
+
+		text = p:build()
+	end
+
+	for line in text:gmatch "[^\n]+" do
+		local parts = tokenise( line:gsub( "//.-$", "" ) .. '"' )
+		local command = table.remove( parts, 1 )
+
+		if commands[command] then
+			commands[command]( unpack( parts ) )
+		end
+	end
+
+	h.close()
+end
+
+function commands.build()
+	local text = build()
+	local data = getdata()
+
+	for i = 1, #data.outputs do
+
+		local h = fs.open( data.outputs[i], "w" )
+		if h then
+			h.write( text )
+			h.close()
+		else
+			return error( "cannot write to output file '" .. data.outputs[i] .. "'", 0 )
+		end
+
+		print( "Built to " .. data.outputs[i] )
+	end
+end
+
+function commands.debug()
+	local text = build()
+
+	local f, err = ( loadstring or load )(text, "debug", nil, _ENV)
+	if f and setfenv then setfenv( f, getfenv() ) end
+	if f then return f() end
+	return error( err, 0 )
+
+end
+
+function commands.save( file )
+	if type( file ) ~= "string" then return error( "expected string file, got " .. type( file ), 0 ) end
+
+	fs.delete( filename( file ) )
+	fs.copy( ".build-data", filename( file ) )
+
+	print( "Saved in " .. filename( file ) )
+end
+
+function commands.load( file )
+	if type( file ) ~= "string" then return error( "expected string file, got " .. type( file ), 0 ) end
+
+	if isFile( filename( file ) ) then
+		fs.delete ".build-data"
+		fs.copy( filename( file ), ".build-data" )
+		print( "Loaded from " .. filename( file ) )
+	else
+		return error( "no such file '" .. filename( file ) .. "'", 0 )
+	end
+end
+
+if commands[command] then
+	commands[command]( unpack( args ) )
+
+elseif command == "status" or command == "s" then
+	status()
+
+elseif command == "help" or type( command ) ~= "string" then
+	local width, height = term.getSize()
+	local lines = wrap( HELPTEXT:gsub( "\t", "   " ), width )
+
+	if #lines < height then
+		print( table.concat( lines, "\n" ) )
+	else
+		for i = 1, height - 1 do
+			print( table.remove( lines, 1 ) )
+		end
+
+		while lines[1] do
+			write "Press any key to continue"
+			os.pullEvent "key"
+			term.scroll( 1 )
+			term.setCursorPos( 1, height - 1 )
+			term.clearLine()
+			print( table.remove( lines, 1 ) )
+		end
+	end
+
+elseif type( command ) == "string" then
+	printError( "No command '" .. command .. "'\nUse 'help' to see more." )
+
+end

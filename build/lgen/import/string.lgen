@@ -1,0 +1,27 @@
+
+complex "[\"']":
+	local escaped = false
+	local done = false
+	local s = {}
+	local escape_characters = { ["n"] = "\n", ["0"] = "\0", ["r"] = "\r", ["t"] = "\t", ["\9"] = "\9" }
+
+	for i = position, #text do
+		local char = text:sub( i, i )
+		if escaped then
+			s[#s + 1] = escape_characters[char] or char
+			escaped = false
+		elseif char == "\\" then
+			escaped = true
+		elseif char == initialiser then
+			token( "string", table.concat( s ) )
+			position = i + 1
+			done = true
+			break
+		else
+			s[#s + 1] = char
+		end
+	end
+
+	if not done then
+		throw "end of string not found"
+	end

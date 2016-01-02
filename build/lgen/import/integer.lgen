@@ -1,0 +1,3 @@
+
+pat '%d+' -> integer
+pat '%d+e[%+%-]?%d+' -> integer

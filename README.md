@@ -10,6 +10,7 @@ First of all, clone the repo or download the zip. Pt the `src` folder into a fol
 After that, enter the following commands into the shell:
 
 ```
+require.lua
 cp build graphics/build
 cd graphics
 build run setup

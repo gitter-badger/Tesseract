@@ -5,13 +5,14 @@ Tesseract is a graphics library for ComputerCraft and possibly OpenComputers and
 
 ### How to install and use
 
-Firstly, download a small OS that includes building tools: `pastebin run viz9UYXi`.
+Firstly, install a small OS that includes building tools: `pastebin run viz9UYXi`. Having been installed, it will create a `usr` folder in the computer. This will be invisible if you're looking in-game, but if looking through an external editor, it's there, and contains all your files.
 
-Next, clone the repo or download the zip. Make a new folder called `graphics` inside a CC computer folder, copy `src` and `setup` into it (`graphics/src` and `graphics/setup`), then copy everything from the `utils` folder into the root of the CC computer folder.
+Next, clone the repo or download the zip. Make a new folder called `graphics` inside the `usr` folder, copy `src` and `setup` into it (`graphics/src` and `graphics/setup`), then copy everything from the `utils` folder into the `usr` folder.
 
 After that, enter the following commands into the shell:
 
 ```
+require.lua
 cd graphics
 build run setup
 ```
